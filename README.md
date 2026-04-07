@@ -1,4 +1,4 @@
-# PomoFlow
+# tomopomo
 
 a clean, simple pomodoro timer i built to actually use myself!
 
