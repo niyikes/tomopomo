@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Play, Pause, Settings, User, Plus, Trash2, Edit2, CheckCircle2, Circle, Check, MoreVertical, ChevronDown, ChevronUp, X } from 'lucide-react';
+import { Play, Pause, Settings, User, Plus, Trash2, Edit2, CheckCircle2, Circle, Check, MoreVertical, ChevronDown, ChevronUp, X, SkipForward } from 'lucide-react';
 
 const LONG_BREAK_INTERVAL=4;
 
@@ -24,6 +24,19 @@ export default function Home() {
   
   const [time, setTime] = useState(durations.focus * 60);
 
+  const skipSession = () => {
+    setIsActive(false);
+    if (timerMode == 'focus') {
+      const newCount = focusCount+1;
+      setFocusCount(newCount);
+      const nextMode= newCount % LONG_BREAK_INTERVAL === 0 ? 'long' : 'short' ;
+      setTimerMode (nextMode);
+      setTime(durations [nextMode] *60);
+    } else {
+        setTimerMode('focus');
+        setTime(getSessionTime('focus'));
+      }
+    }
 
   const [editingMinutes, setEditingMinutes] = useState(false);
   const minuteInputRef = useRef<HTMLInputElement>(null);
@@ -48,6 +61,8 @@ export default function Home() {
     const now = new Date();
     const finishDate=new Date(now.getTime()+totalMinutesNeeded*60000);
 
+
+
     return {
       time: finishDate.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
       hours: (totalMinutesNeeded/60).toFixed(1),
@@ -56,13 +71,55 @@ export default function Home() {
 
   };
 
+    //fraction session time
+    const getSessionTime = (mode: 'focus'| 'short'| 'long')=>{
+      if (mode!== 'focus' || activeTaskId === null) return durations[mode]*60;
+      const task=tasks.findLast(t=> t.id === activeTaskId);
+      if (!task) return durations[mode] *60;
+      const remaining = task.estPomos-task.actPomos;
+      const fraction = remaining % 1; 
+      if (fraction > 0) return Math.round(fraction*durations[mode]*60);
+      return durations[mode]*60;
+    };
+
   const finishData = calculateFinishTime();
+
+//browser notifs
+useEffect(() => {
+  if('Notification' in window) Notification.requestPermission();
+}, []);
+
+
+//local storage
+useEffect(() => {
+  const savedTasks = localStorage.getItem('pf-tasks');
+  const savedDurations = localStorage.getItem('pf-durations');
+  const savedFocusCount = localStorage.getItem('of-focuscount');
+
+  if (savedTasks) setTasks(JSON.parse(savedTasks));
+  if (savedDurations) setDurations(JSON.parse(savedDurations));
+  if (savedFocusCount) setFocusCount(parseInt(savedFocusCount));
+}, []);
+
+//save to local when...
+useEffect(() => {
+  localStorage.setItem('pf-tasks', JSON.stringify(tasks));
+}, [tasks]);
+
+useEffect(() => {
+  localStorage.setItem('pf-durations', JSON.stringify(durations));
+}, [durations]);
+
+useEffect(() => {
+  localStorage.setItem('pf-focuscount', focusCount.toString());
+}, [focusCount]);
+
 
   //browser tab tittle
   useEffect(() => {
     const modeLabel = timerMode === 'focus' ? 'Focus' :timerMode ==='short' ? 'Short Break' : 'Long Break';
-    document.title=isActive ? `${formatTime(time)} - ${modeLabel}` : 'pomoflow';
-    return () => { document.title = 'pomoflow';};
+    document.title=isActive ? `${formatTime(time)} - ${modeLabel}` : 'tomopomo';
+    return () => { document.title = 'tomopomo';};
   }, [time, isActive, timerMode]);
 
 
@@ -77,6 +134,11 @@ export default function Home() {
       //audio
       const audio = new Audio('/timer-end.mp3');
       audio.play().catch((error) => console.log("audio play failed :(", error));
+
+      if ('Notification' in window && Notification.permission === 'granted') {
+        const modeLabel = timerMode === 'focus' ? 'focus session done! take a break ☆' : 'break over! time to focus ☆';
+        new Notification('tomopomo', {body: modeLabel, icon:'/favicon.ico'});
+      }
     
       // mode switch when timer ends 
       if (timerMode==='focus'){
@@ -195,8 +257,8 @@ const handleAddTask = () => {
         {/* NAVBAR */}
         <nav className="w-full bg-[#E8C5BE] rounded-[2rem] px-8 py-4 mb-8 flex items-center justify-between shadow-sm border-b-4 border-[#D4AFA8]">
           <div className="flex items-center gap-2">
-            <img src='/logo.png' alt="PomoFlow" className="w-8 h-8 object-contain"/>
-            <h1 className="text-3xl font-bold tracking-tight text-[#634832]">PomoFlow</h1>
+            <img src='/logo.png' alt="tomopomo" className="w-8 h-8 object-contain"/>
+            <h1 className="text-3xl font-bold tracking-tight text-[#634832]">tomopomo</h1>
           </div>
           <div className="flex gap-4 opacity-70 text-[#634832]">
             <div className='relative group'>
@@ -290,18 +352,26 @@ const handleAddTask = () => {
               )}
             </div>
 
-
-            <button
-              onClick={() => {
-                const sound = new Audio('/start.mp3');
-                sound.play().catch(()=>{});                
-                setIsActive(!isActive)}
-              }
-              className="bg-[#A0655C] hover:bg-[#8B4E48] text-white px-10 py-4 rounded-full text-2xl flex items-center gap-2 mx-auto shadow-xl transition-all active:scale-95 border-b-4 border-[#634832]/30"
+            <div className="flex items-center gap-4 justify-center">
+              <button
+                onClick={() => {
+                  const sound = new Audio('/start.mp3');
+                  sound.play().catch(() => {});
+                  setIsActive(!isActive);
+                }}
+                className="bg-[#A0655C] hover:bg-[#8B4E48] text-white px-10 py-4 rounded-full text-2xl flex items-center gap-2 shadow-xl transition-all active:scale-95 border-b-4 border-[#634832]/30"
               >
-                {isActive? <Pause fill="white" /> : <Play fill="white" />}
-                {isActive ? 'PAUSE':'START'}
-                </button>
+                {isActive ? <Pause fill="white" /> : <Play fill="white" />}
+                {isActive ? 'PAUSE' : 'START'}
+              </button>
+              <button
+                onClick={skipSession}
+                className="bg-[#A0655C]/50 hover:bg-[#A0655C] text-white p-4 rounded-full shadow-xl transition-all active:scale-95 border-b-4 border-[#634832]/30"
+                title="Skip session"
+              >
+                <SkipForward className="w-6 h-6" />
+              </button>
+            </div>
 
                 <div className='flex justify-center gap-2 mt-4'>
                   {pomoDots.map((filled, i)=> (
@@ -399,7 +469,14 @@ const handleAddTask = () => {
                   {/* Task Header */}
                   <div
                     className="p-5 flex items-center justify-between cursor-pointer"
-                    onClick={() => setActiveTaskId(task.id === activeTaskId ? null : task.id)}
+                    onClick={() => {
+                      const newId = task.id === activeTaskId?null: task.id;
+                      setActiveTaskId(newId);
+                      if (newId !== null && timerMode === 'focus') {
+                        setTime(getSessionTime('focus')); }
+                      }
+                    }
+
                   >
                     <div className="flex items-center gap-4">
                       <button onClick={(e) => { e.stopPropagation(); toggleTask(task.id); }}>
@@ -424,8 +501,8 @@ const handleAddTask = () => {
                       ) : (
                         <span
                           className={`text-2xl cursor-text hover:underline decoration-dashed decoration-[#D4AFA8] underline-offset-4 transition ${task.completed ? 'line-through opacity-40' : ''}`}
-                          onDoubleClick={(e) => { e.stopPropagation(); setTasks(tasks.map(t => t.id === task.id ? { ...t, isEditingName: true } : t)); }}
-                          title="Double-click to edit"
+                          onClick={(e) => { e.stopPropagation(); setTasks(tasks.map(t => t.id === task.id ? { ...t, isEditingName: true } : t)); }}
+                          title="Click to edit"
                         >
                           {task.text}
                         </span>
