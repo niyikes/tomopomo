@@ -20,3 +20,7 @@ a clean, simple pomodoro timer i built to actually use myself!
 - next.js + typescript
 - tailwind css
 - framer motion
+- ai was used for debugging, tricky bits (local storage, key listeners, and debugging framer motion), and helping me learn react.
+  i also used this tutorial nextjs.org/learn. i genuinely learnt a lot making this!!
+
+inspired by pomofocus.io (i love you pomofocus)
